@@ -1,1 +1,2 @@
-g++ -std=c++14 main.cpp
+all:
+	g++ -std=c++14 main.cpp
