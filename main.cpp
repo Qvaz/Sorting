@@ -27,7 +27,7 @@ template <typename Cmp = std::less<>, typename Sort, typename... Args>
 void test(Sort sort, Args&&... args)
 {
 	// test sample length and number of iterations
-	const size_t length = 1e8;
+	const size_t length = 1e6;
 	const int cycles = 10;
 
 	std::random_device rd;

@@ -5,6 +5,7 @@
 #include <random>
 #include <iterator>
 #include <thread>
+#include <future>
 
 namespace parallel
 {
@@ -46,7 +47,7 @@ namespace parallel
 		std::pair<It, It> partition(It begin, It end, Cmp cmp)
 		{
 			It middle = begin + (end - begin) / 2;
-			auto pivot = inner::mean(*begin, *middle, *end);
+			auto pivot = inner::mean(*begin, *middle, *std::prev(end));
 	
 			// classic
 			--end;
@@ -75,21 +76,28 @@ namespace parallel
 			// middles are iterators pointing to subranges' bounds
 			It middle1, middle2;
 			std::tie(middle1, middle2) = partition_call(begin, end, cmp);
-			
+
 			// some threading
 			// first subrange is (begin,middle1)
-			std::thread t1;
+			struct ThreadRAII
+			{
+				std::thread nested_thread;
+				~ThreadRAII() {
+					if (nested_thread.joinable()) 
+						nested_thread.join();
+				}
+			} raii_thread;
+
 			if (threads > 1) {
 				int new_threads = std::ceil((threads - 1) / 2.);
-				t1 = std::thread(sort_base<It, Cmp, Callable>, begin, middle1, cmp, partition_call, new_threads);
+				raii_thread.nested_thread = std::thread(sort_base<It, Cmp, Callable>, begin, middle1, 
+														cmp, partition_call, new_threads);
 				threads -= new_threads;
 			} 
 			else sort_base(begin, middle1, cmp, partition_call, 1);
 
 			// second is (middle2, end)
 			sort_base(middle2, end, cmp, partition_call, threads);
-
-			if (t1.joinable()) t1.join();
 		}	
 	}
 
@@ -106,7 +114,7 @@ void sort_partition(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread
 {
 	inner::sort_base(begin, end, cmp, [](It begin, It end, Cmp cmp) {
 		It middle = begin + (end - begin) / 2;
-		auto pivot = inner::mean(*begin, *middle, *end);
+		auto pivot = inner::mean(*begin, *middle, *std::prev(end));
 
 		It middle1 = std::partition(begin,   end, [&](const auto& a){ return cmp(a, pivot); });
 		It middle2 = std::partition(middle1, end, [&](const auto& a){ return !cmp(pivot, a); });
