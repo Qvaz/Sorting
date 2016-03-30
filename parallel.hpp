@@ -7,19 +7,21 @@
 #include <thread>
 #include <future>
 
+#include "qul.hpp"
+
 namespace parallel
 {
 	// classic manual quicksort
-	template <typename It, typename Cmp>
-	void sort(It begin, It end, Cmp cmp, int threads);
+	template <typename It, typename Cmp = std::less<>>
+	void sort(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread::hardware_concurrency());
 
 	// sorting using std::partition
-	template <typename It, typename Cmp>
-	void sort_partition(It begin, It end, Cmp cmp, int threads);
+	template <typename It, typename Cmp = std::less<>>
+	void sort_partition(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread::hardware_concurrency());
 
 	// sorting using std::nth_element
-	template <typename It, typename Cmp>
-	void sort_nth_element(It begin, It end, Cmp cmp, int threads);
+	template <typename It, typename Cmp = std::less<>>
+	void sort_nth_element(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread::hardware_concurrency());
 
 	// routines
 	namespace inner
@@ -79,19 +81,16 @@ namespace parallel
 
 			// some threading
 			// first subrange is (begin,middle1)
-			struct ThreadRAII
-			{
-				std::thread nested_thread;
-				~ThreadRAII() {
-					if (nested_thread.joinable()) 
-						nested_thread.join();
-				}
-			} raii_thread;
+
+			std::thread worker;
+			auto joiner = qul::make_raii([&worker](){
+				if (worker.joinable()) worker.join();	
+			});
 
 			if (threads > 1) {
 				int new_threads = std::ceil((threads - 1) / 2.);
-				raii_thread.nested_thread = std::thread(sort_base<It, Cmp, Callable>, begin, middle1, 
-														cmp, partition_call, new_threads);
+				worker = std::thread(sort_base<It, Cmp, Callable>, begin, middle1, 
+										cmp, partition_call, new_threads);
 				threads -= new_threads;
 			} 
 			else sort_base(begin, middle1, cmp, partition_call, 1);
@@ -101,16 +100,16 @@ namespace parallel
 		}	
 	}
 
-// just pass a manual partiotion as a callback
-template <typename It, typename Cmp = std::less<>>
-void sort(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread::hardware_concurrency())
+// just pass a manual partition as a callback
+template <typename It, typename Cmp>
+void sort(It begin, It end, Cmp cmp, int threads)
 {
 	inner::sort_base(begin, end, cmp, inner::partition<It, Cmp>, threads);
 }
 
 // two calls of std::partition to gather all elements equal to pivot
-template <typename It, typename Cmp = std::less<>>
-void sort_partition(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread::hardware_concurrency())
+template <typename It, typename Cmp>
+void sort_partition(It begin, It end, Cmp cmp, int threads)
 {
 	inner::sort_base(begin, end, cmp, [](It begin, It end, Cmp cmp) {
 		It middle = begin + (end - begin) / 2;
@@ -123,8 +122,8 @@ void sort_partition(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread
 }
 
 // always call nth_element for the middle of range
-template <typename It, typename Cmp = std::less<>>
-void sort_nth_element(It begin, It end, Cmp cmp = Cmp{}, int threads = std::thread::hardware_concurrency())
+template <typename It, typename Cmp>
+void sort_nth_element(It begin, It end, Cmp cmp, int threads)
 {
 	inner::sort_base(begin, end, cmp, [](It begin, It end, Cmp cmp) {
 		It pivot = begin + (end - begin) / 2;
