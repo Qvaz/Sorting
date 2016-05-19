@@ -12,7 +12,7 @@ template <typename Cmp, typename Sort, typename Vector, typename... Args>
 auto benchmark(Sort sort, Vector vec, Args&&... args)
 {
 	auto start = std::chrono::system_clock::now();
-	sort(vec.begin(), vec.end(), Cmp{}, std::forward<Args>(args)...);
+	sort(vec.begin(), vec.end(), Cmp{}, std::forward<Args>(args)...);	
 	auto end = std::chrono::system_clock::now();
 	auto duration = end - start;
 
@@ -27,8 +27,8 @@ template <typename Cmp = std::less<>, typename Sort, typename... Args>
 void test(Sort sort, Args&&... args)
 {
 	// test sample length and number of iterations
-	const size_t length = 1e6;
-	const int cycles = 10;
+	const size_t length = 1e5;
+	const int cycles = 5;
 
 	std::random_device rd;
 	std::mt19937 g(rd());
@@ -66,15 +66,27 @@ int main(int argc, char* argv[])
 {
 	const unsigned threads = 8;
 
-	std::cout << "parallel " << threads << ":\n";
-	test<std::greater<>>(SORT_CALL(parallel::sort), threads);
+	try
+	{
+		std::cout << "parallel " << threads << ":\n";
+		test<>(SORT_CALL(parallel::sort), threads);
 
-	std::cout << "\nparallel partition " << threads << ":\n";
-	test<std::greater<>>(SORT_CALL(parallel::sort_partition), threads);
-	
-	std::cout << "\nparallel nth_element " << threads << ":\n";
-	test(SORT_CALL(parallel::sort_nth_element), threads);
-	
-	std::cout << "\nstd:\n";
-	test(SORT_CALL(std::sort));
+		std::cout << "atomic parallel " << threads << ":\n";
+		test<>(SORT_CALL(parallel::sort_atomic), threads);
+
+		/*std::cout << "\nparallel partition " << threads << ":\n";
+		test<std::greater<>>(SORT_CALL(parallel::sort_partition), threads);
+		
+		std::cout << "\nparallel nth_element " << threads << ":\n";
+		test(SORT_CALL(parallel::sort_nth_element), threads);*/
+		
+		std::cout << "\nstd:\n";
+		test(SORT_CALL(std::sort));
+	}
+	catch (std::exception& ex) {
+		std::cerr << "Error in main: " << ex.what();
+	}
+	catch (...) {
+		std::cerr << "Oops...";
+	}
 }
